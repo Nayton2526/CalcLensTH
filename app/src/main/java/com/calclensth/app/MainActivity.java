@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -44,6 +45,16 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
         super.onCreate(savedInstanceState);
 
         webView = new WebView(this);
+
+        getWindow().setStatusBarColor(Color.rgb(17, 24, 39));
+        getWindow().setNavigationBarColor(Color.WHITE);
+
+        int statusBarHeight = 0;
+        int statusId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (statusId > 0) {
+            statusBarHeight = getResources().getDimensionPixelSize(statusId);
+        }
+        webView.setPadding(0, statusBarHeight, 0, 0);
         setContentView(webView);
 
         WebSettings settings = webView.getSettings();
