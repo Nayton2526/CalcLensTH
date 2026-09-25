@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>CalcLens TH V0.1</title>
+<style>
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,"Noto Sans Thai",sans-serif;background:#f3f4f6;color:#111827}
+.app{max-width:760px;margin:auto;min-height:100vh;background:#fff}
+header{padding:18px 18px 14px;background:#111827;color:white;position:sticky;top:0;z-index:5}
+h1{font-size:22px;margin:0}.sub{font-size:13px;opacity:.8;margin-top:4px}
+.counter{margin-top:10px;display:inline-block;background:#1f2937;border:1px solid #374151;padding:6px 10px;border-radius:999px;font-size:13px}
+main{padding:16px}.tabs{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+.tab{border:1px solid #d1d5db;background:#fff;padding:11px;border-radius:12px;font-weight:700}
+.tab.active{background:#111827;color:#fff;border-color:#111827}.card{border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 4px 14px rgba(0,0,0,.04)}
+label{display:block;font-size:13px;font-weight:700;margin:10px 0 6px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:16px;background:#fff}
+textarea{min-height:90px;resize:vertical}.modes{display:flex;gap:8px;margin:12px 0}.mode{flex:1;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff;font-weight:700}
+.mode.active{background:#e5e7eb;border-color:#9ca3af}.calc{width:100%;padding:14px;border:0;border-radius:12px;background:#111827;color:#fff;font-size:17px;font-weight:800}
+.result{display:none;margin-top:14px;background:#f9fafb;border-left:4px solid #111827;padding:13px;border-radius:8px;white-space:pre-wrap;line-height:1.6}
+.answer{font-size:21px;font-weight:900;margin-bottom:8px}.hint{font-size:12px;color:#6b7280;margin-top:8px}.camera{display:flex;align-items:center;gap:10px;padding:12px;border:1px dashed #9ca3af;border-radius:12px;background:#f9fafb;margin-bottom:14px}
+.camera button{padding:9px 12px;border:0;border-radius:9px;background:#374151;color:#fff;font-weight:700}.badge{font-size:11px;background:#fef3c7;color:#92400e;padding:3px 7px;border-radius:999px}
+.hidden{display:none}.error{color:#b91c1c;font-weight:700}
+footer{padding:20px;text-align:center;color:#6b7280;font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <h1>CalcLens TH <span style="font-size:12px;font-weight:600">V0.1</span></h1>
+  <div class="sub">เครื่องคำนวณออฟไลน์ • คำตอบอย่างเดียว / แสดงวิธีทำ</div>
+  <div class="counter" id="counter">ทดลองฟรีเหลือ 50 ครั้ง</div>
+</header>
+<main>
+  <div class="camera">
+    <button onclick="cameraSoon()">📷 ถ่ายโจทย์</button>
+    <div><b>Photo OCR</b> <span class="badge">V0.2</span><div class="hint">V0.1 ทดสอบ Calculation Engine ก่อน</div></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="basic">คณิตพื้นฐาน</button>
+    <button class="tab" data-tab="calculus">Calculus</button>
+    <button class="tab" data-tab="electrical">ไฟฟ้า</button>
+    <button class="tab" data-tab="mechanical">เครื่องกล</button>
+  </div>
+  <section id="basic" class="card panel">
+    <b>คณิตพื้นฐาน</b>
+    <label>นิพจน์</label>
+    <textarea id="basicExpr" placeholder="เช่น (25+7)*3/2 + sqrt(81)"></textarea>
+    <div class="hint">รองรับ + − × ÷ ^, sqrt, sin, cos, tan, log, ln, abs, pi</div>
+  </section>
+  <section id="calculus" class="card panel hidden">
+    <b>Calculus — พหุนาม</b>
+    <label>ประเภท</label>
+    <select id="calcType" onchange="toggleBounds()">
+      <option value="derivative">หาอนุพันธ์</option>
+      <option value="integral">อินทิกรัลจำกัดเขต</option>
+    </select>
+    <label>f(x)</label>
+    <input id="polyExpr" value="3x^2+2x+1" placeholder="เช่น 3x^2+2x+1">
+    <div id="bounds" class="row hidden">
+      <div><label>ขอบล่าง a</label><input id="boundA" type="number" value="0" step="any"></div>
+      <div><label>ขอบบน b</label><input id="boundB" type="number" value="2" step="any"></div>
+    </div>
+  </section>
+  <section id="electrical" class="card panel hidden">
+    <b>ไฟฟ้า</b>
+    <label>การคำนวณ</label>
+    <select id="elecType" onchange="toggleElec()">
+      <option value="motor">กระแสมอเตอร์ 3 เฟส</option>
+      <option value="vdrop">แรงดันตก 3 เฟส (Cu)</option>
+    </select>
+    <div id="motorFields">
+      <div class="row"><div><label>กำลัง (kW)</label><input id="kw" type="number" value="5.5" step="any"></div><div><label>แรงดัน (V)</label><input id="volt" type="number" value="380" step="any"></div></div>
+      <div class="row"><div><label>Power factor</label><input id="pf" type="number" value="0.82" step="any"></div><div><label>Efficiency</label><input id="eff" type="number" value="0.90" step="any"></div></div>
+    </div>
+    <div id="vdropFields" class="hidden">
+      <div class="row"><div><label>กระแส I (A)</label><input id="vdI" type="number" value="16" step="any"></div><div><label>ระยะ L (km)</label><input id="vdL" type="number" value="0.7" step="any"></div></div>
+      <div class="row"><div><label>แรงดัน V</label><input id="vdV" type="number" value="380" step="any"></div><div><label>ขนาดสาย A (mm²)</label><input id="vdA" type="number" value="25" step="any"></div></div>
+      <div class="row"><div><label>PF</label><input id="vdPF" type="number" value="0.85" step="any"></div><div><label>อุณหภูมิ °C</label><input id="vdT" type="number" value="70" step="any"></div></div>
+      <label>Reactance X (Ω/km)</label><input id="vdX" type="number" value="0.08" step="any">
+    </div>
+  </section>
+  <section id="mechanical" class="card panel hidden">
+    <b>เครื่องกล</b>
+    <label>การคำนวณ</label>
+    <select id="mechType">
+      <option value="torque">หา Torque จาก kW และ rpm</option>
+      <option value="power">หา Power จาก Torque และ rpm</option>
+    </select>
+    <div class="row">
+      <div><label id="m1label">Power (kW)</label><input id="m1" type="number" value="5.5" step="any"></div>
+      <div><label>Speed (rpm)</label><input id="rpm" type="number" value="1450" step="any"></div>
+    </div>
+  </section>
+  <div class="modes">
+    <button class="mode active" id="answerMode" onclick="setMode(false)">คำตอบอย่างเดียว</button>
+    <button class="mode" id="stepsMode" onclick="setMode(true)">แสดงวิธีทำ</button>
+  </div>
+  <button class="calc" onclick="calculate()">คำนวณ</button>
+  <div id="result" class="result"></div>
+</main>
+<footer>CalcLens TH • Offline calculation prototype • V0.1</footer>
+</div>
+<script>
+let activeTab='basic', showSteps=false;
+let remaining=Number(localStorage.getItem('calclens_remaining') ?? 50);
+function updateCounter(){document.getElementById('counter').textContent='ทดลองฟรีเหลือ '+remaining+' ครั้ง';}
+updateCounter();
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  activeTab=b.dataset.tab;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.add('hidden'));
+  document.getElementById(activeTab).classList.remove('hidden');
+});
+document.getElementById('mechType').onchange=()=>{
+  document.getElementById('m1label').textContent=document.getElementById('mechType').value==='torque'?'Power (kW)':'Torque (N·m)';
+};
+function setMode(v){showSteps=v;document.getElementById('answerMode').classList.toggle('active',!v);document.getElementById('stepsMode').classList.toggle('active',v);}
+function toggleBounds(){document.getElementById('bounds').classList.toggle('hidden',document.getElementById('calcType').value!=='integral');}
+function toggleElec(){let v=document.getElementById('elecType').value;document.getElementById('motorFields').classList.toggle('hidden',v!=='motor');document.getElementById('vdropFields').classList.toggle('hidden',v!=='vdrop');}
+function cameraSoon(){alert('V0.2 จะเพิ่มการถ่ายรูป + OCR แบบประมวลผลในเครื่อง ตอนนี้ V0.1 ใช้ทดสอบ Calculation Engine ก่อน');}
+function fmt(n){if(!Number.isFinite(n)) throw Error('ผลลัพธ์ไม่เป็นจำนวนจริง'); return Math.abs(n)<1e-12?'0':Number(n.toFixed(10)).toString();}
+class Parser{
+  constructor(s){this.s=s.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/π/gi,'pi').toLowerCase();this.i=0;}
+  ws(){while(/\s/.test(this.s[this.i]||''))this.i++;}
+  eat(c){this.ws();if(this.s.startsWith(c,this.i)){this.i+=c.length;return true}return false}
+  number(){this.ws();let m=this.s.slice(this.i).match(/^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/i);if(!m)return null;this.i+=m[0].length;return Number(m[0]);}
+  name(){this.ws();let m=this.s.slice(this.i).match(/^[a-z]+/);if(!m)return null;this.i+=m[0].length;return m[0];}
+  parse(){let v=this.expr();this.ws();if(this.i!==this.s.length)throw Error('อ่านนิพจน์ไม่ได้ที่ "'+this.s.slice(this.i)+'"');return v}
+  expr(){let v=this.term();for(;;){if(this.eat('+'))v+=this.term();else if(this.eat('-'))v-=this.term();else return v}}
+  term(){let v=this.power();for(;;){if(this.eat('*'))v*=this.power();else if(this.eat('/'))v/=this.power();else return v}}
+  power(){let v=this.unary();if(this.eat('^'))v=Math.pow(v,this.power());return v}
+  unary(){if(this.eat('+'))return this.unary();if(this.eat('-'))return -this.unary();return this.primary()}
+  primary(){
+    if(this.eat('(')){let v=this.expr();if(!this.eat(')'))throw Error('วงเล็บไม่ครบ');return v}
+    let n=this.number();if(n!==null)return n;
+    let p=this.i,name=this.name();
+    if(name){
+      if(name==='pi')return Math.PI;if(name==='e')return Math.E;
+      if(!this.eat('('))throw Error('ฟังก์ชัน '+name+' ต้องมีวงเล็บ');
+      let v=this.expr();if(!this.eat(')'))throw Error('วงเล็บไม่ครบ');
+      let f={sqrt:Math.sqrt,sin:Math.sin,cos:Math.cos,tan:Math.tan,ln:Math.log,log:Math.log10,abs:Math.abs}[name];
+      if(!f)throw Error('ไม่รู้จักฟังก์ชัน '+name);return f(v)
+    }
+    this.i=p;throw Error('รูปแบบนิพจน์ไม่ถูกต้อง');
+  }
+}
+function parsePoly(s){
+  s=s.replace(/\s+/g,'').replace(/−/g,'-');
+  if(!s)throw Error('กรุณาใส่ f(x)');
+  if(s[0]!=='-'&&s[0]!=='+')s='+'+s;
+  let terms=s.match(/[+-][^+-]+/g)||[],out=[];
+  for(let t of terms){
+    let sign=t[0]==='-'?-1:1,body=t.slice(1),c=0,n=0;
+    if(body.includes('x')){
+      let [left,right]=body.split('x');c=left===''?1:Number(left);
+      if(!Number.isFinite(c))throw Error('สัมประสิทธิ์ไม่ถูกต้อง: '+t);
+      n=1;if(right){if(!right.startsWith('^'))throw Error('รูปพหุนามไม่ถูกต้อง: '+t);n=Number(right.slice(1));}
+      if(!Number.isFinite(n))throw Error('เลขชี้กำลังไม่ถูกต้อง: '+t);
+    }else{c=Number(body);n=0;if(!Number.isFinite(c))throw Error('ค่าคงที่ไม่ถูกต้อง: '+t)}
+    out.push({c:sign*c,n});
+  }
+  return out;
+}
+function polyStr(ts){
+  let a=ts.filter(t=>Math.abs(t.c)>1e-12).sort((x,y)=>y.n-x.n);if(!a.length)return '0';
+  return a.map((t,k)=>{
+    let sign=t.c<0?'-':(k?'+':'');let c=Math.abs(t.c),core='';
+    if(t.n===0)core=fmt(c);else core=(Math.abs(c-1)<1e-12?'':fmt(c))+'x'+(t.n===1?'':'^'+fmt(t.n));
+    return sign+core;
+  }).join('');
+}
+function evalPoly(ts,x){return ts.reduce((s,t)=>s+t.c*Math.pow(x,t.n),0);}
+function calculate(){
+  let box=document.getElementById('result');box.style.display='block';box.classList.remove('error');
+  if(remaining<=0){box.classList.add('error');box.textContent='โควตาทดลองหมดแล้ว (V0.1 ยังเป็นตัวนับในเครื่อง)';return}
+  try{
+    let answer='',steps='';
+    if(activeTab==='basic'){
+      let e=document.getElementById('basicExpr').value,v=new Parser(e).parse();answer=fmt(v);
+      steps='โจทย์: '+e+'\nคำนวณตามลำดับวงเล็บ → ยกกำลัง → คูณ/หาร → บวก/ลบ\nผลลัพธ์ = '+answer;
+    }else if(activeTab==='calculus'){
+      let s=document.getElementById('polyExpr').value,ts=parsePoly(s),type=document.getElementById('calcType').value;
+      if(type==='derivative'){
+        let d=ts.filter(t=>t.n!==0).map(t=>({c:t.c*t.n,n:t.n-1}));answer='f′(x) = '+polyStr(d);
+        steps='f(x) = '+polyStr(ts)+'\nใช้กฎ d/dx(ax^n) = a·n·x^(n−1)\nดังนั้น '+answer;
+      }else{
+        let a=Number(document.getElementById('boundA').value),b=Number(document.getElementById('boundB').value);
+        let it=ts.map(t=>({c:t.c/(t.n+1),n:t.n+1})),vb=evalPoly(it,b),va=evalPoly(it,a),res=vb-va;answer=fmt(res);
+        steps='f(x) = '+polyStr(ts)+'\nF(x) = '+polyStr(it)+'\nF('+fmt(b)+') = '+fmt(vb)+'\nF('+fmt(a)+') = '+fmt(va)+'\n∫ = F(b) − F(a) = '+answer;
+      }
+    }else if(activeTab==='electrical'){
+      if(document.getElementById('elecType').value==='motor'){
+        let p=+document.getElementById('kw').value,V=+document.getElementById('volt').value,pf0=+document.getElementById('pf').value,eta=+document.getElementById('eff').value;
+        if([p,V,pf0,eta].some(x=>!Number.isFinite(x)||x<=0))throw Error('ค่าต้องมากกว่า 0');
+        let I=p*1000/(Math.sqrt(3)*V*pf0*eta);answer=fmt(I)+' A';
+        steps='สูตร I = P / (√3 × V × PF × η)\n= '+fmt(p*1000)+' / (√3 × '+V+' × '+pf0+' × '+eta+')\n= '+answer;
+      }else{
+        let I=+document.getElementById('vdI').value,L=+document.getElementById('vdL').value,V=+document.getElementById('vdV').value,A=+document.getElementById('vdA').value,pf0=+document.getElementById('vdPF').value,T=+document.getElementById('vdT').value,X=+document.getElementById('vdX').value;
+        let R=(17.241/A)*(1+0.00393*(T-20)),sin=Math.sqrt(1-pf0*pf0),pct=100*Math.sqrt(3)*I*L/V*(R*pf0+X*sin);
+        answer=fmt(pct)+' %';
+        steps='R(T) = (17.241/A)×[1+0.00393(T−20)] = '+fmt(R)+' Ω/km\nsinφ = √(1−PF²) = '+fmt(sin)+'\n%ΔV = 100√3IL/V × (R·PF + X·sinφ)\n= '+answer;
+      }
+    }else if(activeTab==='mechanical'){
+      let x=+document.getElementById('m1').value,r=+document.getElementById('rpm').value;
+      if(!Number.isFinite(x)||!Number.isFinite(r)||r<=0)throw Error('กรุณาตรวจค่าที่ใส่');
+      if(document.getElementById('mechType').value==='torque'){let T=9550*x/r;answer=fmt(T)+' N·m';steps='สูตร T = 9550 × P(kW) / rpm\n= 9550 × '+x+' / '+r+'\n= '+answer}
+      else{let P=x*r/9550;answer=fmt(P)+' kW';steps='สูตร P(kW) = T × rpm / 9550\n= '+x+' × '+r+' / 9550\n= '+answer}
+    }
+    remaining--;localStorage.setItem('calclens_remaining',remaining);updateCounter();
+    box.innerHTML='<div class="answer">'+answer+'</div>'+(showSteps?steps.replace(/\n/g,'<br>'):'');
+  }catch(e){box.classList.add('error');box.textContent='ตรวจข้อมูล: '+e.message;}
+}
+</script>
+</body>
+</html>
