@@ -19,7 +19,7 @@ jobs:
         run: |
           curl -L --fail --retry 3 "https://github.com/GreatV/oar-ocr/releases/download/v0.3.0/pp-formulanet-s.onnx" -o /tmp/model.onnx
           curl -L --fail --retry 3 "https://modelscope.cn/models/greatv/oar-ocr/resolve/master/pp-formulanet-tokenizer.json" -o /tmp/tokenizer.json
-          curl -L --fail --retry 3 "https://paddle-model-ecology.bj.bcebos.com/paddlex/demo_image/pipelines/general_formula_recognition_001.png" -o /tmp/sample.png
+          curl -L --fail --retry 3 "https://paddle-model-ecology.bj.bcebos.com/paddlex/imgs/demo_image/general_formula_rec_001.png" -o /tmp/sample.png
       - name: Run exact CalcLens preprocessing
         run: |
           cat > /tmp/test.py <<'PY'
