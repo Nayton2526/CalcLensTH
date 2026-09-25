@@ -146,6 +146,7 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
         try {
             Intent intent = new Intent(this, CropActivity.class);
             intent.putExtra(CropActivity.EXTRA_SOURCE_URI, source.toString());
+            intent.putExtra(CropActivity.EXTRA_MODE, ocrMode);
             startActivityForResult(intent, REQ_NATIVE_CROP);
         } catch (Exception e) {
             sendError("เปิดหน้าครอปไม่ได้: " + safeMessage(e));
@@ -214,7 +215,7 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
         worker.submit(() -> {
             try {
                 formulaEngine.ensureModel(this::sendModelProgress);
-                sendModelProgress(100, "กำลังอ่านโครงสร้างสูตร");
+                sendModelProgress(100, "กำลังหากรอบสูตรจากเอกสาร");
                 String latex = formulaEngine.recognize(uri);
                 if (latex == null || latex.trim().isEmpty()) {
                     throw new IllegalStateException("ไม่พบสูตรในภาพ ลองครอปเฉพาะสูตรให้ชิดขึ้น");
