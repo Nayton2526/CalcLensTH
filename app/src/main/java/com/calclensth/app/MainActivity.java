@@ -1,7 +1,9 @@
 package com.calclensth.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -21,9 +23,12 @@ import org.json.JSONObject;
 import java.io.File;
 
 public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
-    private static final int REQ_CAMERA = 7001;
+    private static final int REQ_CAMERA_PERMISSION = 7000;
+    private static final int REQ_CAMERA_CAPTURE = 7001;
+
     private WebView webView;
     private Uri photoUri;
+
     private final TextRecognizer recognizer =
             TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
 
@@ -46,6 +51,19 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
 
     @Override
     public void launchCamera() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M &&
+                checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                    new String[]{Manifest.permission.CAMERA},
+                    REQ_CAMERA_PERMISSION
+            );
+            return;
+        }
+
+        openSystemCamera();
+    }
+
+    private void openSystemCamera() {
         try {
             File dir = new File(getCacheDir(), "images");
             if (!dir.exists() && !dir.mkdirs()) {
@@ -67,12 +85,30 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
             );
 
             if (intent.resolveActivity(getPackageManager()) == null) {
-                throw new IllegalStateException("ไม่พบแอปกล้อง");
+                throw new IllegalStateException("ไม่พบแอปกล้องในเครื่อง");
             }
 
-            startActivityForResult(intent, REQ_CAMERA);
+            startActivityForResult(intent, REQ_CAMERA_CAPTURE);
         } catch (Exception e) {
             sendError("เปิดกล้องไม่ได้: " + safeMessage(e));
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == REQ_CAMERA_PERMISSION) {
+            if (grantResults.length > 0 &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                openSystemCamera();
+            } else {
+                sendError("ยังไม่ได้อนุญาตใช้กล้อง กรุณาเลือก 'อนุญาต' หรือไปที่ การตั้งค่า > แอป > CalcLens TH > สิทธิ์ > กล้อง");
+            }
         }
     }
 
@@ -80,7 +116,10 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
     @SuppressWarnings("deprecation")
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_CAMERA && resultCode == RESULT_OK && photoUri != null) {
+
+        if (requestCode == REQ_CAMERA_CAPTURE &&
+                resultCode == RESULT_OK &&
+                photoUri != null) {
             runOcr(photoUri);
         }
     }
@@ -112,7 +151,9 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
     }
 
     private String safeMessage(Exception e) {
-        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        return e.getMessage() == null
+                ? e.getClass().getSimpleName()
+                : e.getMessage();
     }
 
     @Override
