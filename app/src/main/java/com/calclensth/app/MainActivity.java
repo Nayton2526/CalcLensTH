@@ -4,7 +4,6 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -18,7 +17,6 @@ import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
-import com.yalantis.ucrop.UCrop;
 
 import org.json.JSONObject;
 
@@ -28,6 +26,7 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
     private static final int REQ_CAMERA_PERMISSION = 7000;
     private static final int REQ_CAMERA_CAPTURE = 7001;
     private static final int REQ_PICK_IMAGE = 7002;
+    private static final int REQ_NATIVE_CROP = 7003;
 
     private WebView webView;
     private Uri photoUri;
@@ -120,20 +119,9 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
 
     private void startCrop(Uri source) {
         try {
-            File cropFile = File.createTempFile("calclens_crop_", ".jpg", getImageCacheDir());
-            Uri destination = Uri.fromFile(cropFile);
-
-            UCrop.Options options = new UCrop.Options();
-            options.setFreeStyleCropEnabled(true);
-            options.setCompressionFormat(Bitmap.CompressFormat.JPEG);
-            options.setCompressionQuality(96);
-            options.setHideBottomControls(false);
-            options.setToolbarTitle("ครอปเฉพาะโจทย์");
-
-            UCrop.of(source, destination)
-                    .withOptions(options)
-                    .withMaxResultSize(1600, 1600)
-                    .start(this);
+            Intent intent = new Intent(this, CropActivity.class);
+            intent.putExtra(CropActivity.EXTRA_SOURCE_URI, source.toString());
+            startActivityForResult(intent, REQ_NATIVE_CROP);
         } catch (Exception e) {
             sendError("เปิดหน้าครอปไม่ได้: " + safeMessage(e));
         }
@@ -177,20 +165,11 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
             return;
         }
 
-        if (requestCode == UCrop.REQUEST_CROP && resultCode == RESULT_OK && data != null) {
-            Uri resultUri = UCrop.getOutput(data);
-            if (resultUri != null) {
-                runOcr(resultUri);
-            } else {
-                sendError("ไม่พบรูปที่ครอปแล้ว");
-            }
-            return;
-        }
-
-        if (requestCode == UCrop.REQUEST_CROP && resultCode == UCrop.RESULT_ERROR && data != null) {
-            Throwable error = UCrop.getError(data);
-            sendError("ครอปรูปไม่สำเร็จ: " +
-                    (error == null ? "ไม่ทราบสาเหตุ" : error.getMessage()));
+        if (requestCode == REQ_NATIVE_CROP &&
+                resultCode == RESULT_OK &&
+                data != null &&
+                data.getData() != null) {
+            runOcr(data.getData());
         }
     }
 
