@@ -323,7 +323,9 @@ public class FormulaOcrEngine implements AutoCloseable {
 
         JSONObject root = new JSONObject(json);
         JSONObject vocabJson = root.getJSONObject("model").getJSONObject("vocab");
-        for (String token : vocabJson.keySet()) {
+        java.util.Iterator<String> keys = vocabJson.keys();
+        while (keys.hasNext()) {
+            String token = keys.next();
             vocab.put(vocabJson.getInt(token), token);
         }
 
