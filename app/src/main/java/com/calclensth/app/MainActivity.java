@@ -132,7 +132,7 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
 
             UCrop.of(source, destination)
                     .withOptions(options)
-                    .withMaxResultSize(2200, 2200)
+                    .withMaxResultSize(1600, 1600)
                     .start(this);
         } catch (Exception e) {
             sendError("เปิดหน้าครอปไม่ได้: " + safeMessage(e));
