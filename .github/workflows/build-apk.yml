@@ -36,6 +36,20 @@ jobs:
           mkdir -p ~/.android
           keytool -genkeypair -v             -keystore ~/.android/debug.keystore             -storepass android             -alias androiddebugkey             -keypass android             -keyalg RSA             -keysize 2048             -validity 10000             -dname "CN=CalcLens TH Test,O=CalcLens TH,C=TH"
 
+      - name: Inspect RapidLaTeXOCR tokenizer
+        run: |
+          curl -L --fail --retry 3 https://github.com/RapidAI/RapidLaTeXOCR/releases/download/v0.0.0/tokenizer.json -o /tmp/tokenizer.json
+          python - <<'PY'
+          import json
+          j=json.load(open('/tmp/tokenizer.json'))
+          print('decoder=',j.get('decoder'))
+          v=j['model']['vocab']
+          inv=sorted((i,t) for t,i in v.items())
+          print('vocab_size=',len(inv))
+          print('first=',inv[:80])
+          print('sample_latex=',[(i,t) for i,t in inv if any(x in t for x in ['\\\\frac','frac','sqrt','lim','cos'])][:40])
+          PY
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
