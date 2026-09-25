@@ -34,20 +34,21 @@ jobs:
         if: steps.signing-key-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.android
-          keytool -genkeypair -v             -keystore ~/.android/debug.keystore             -storepass android             -alias androiddebugkey             -keypass android             -keyalg RSA             -keysize 2048             -validity 10000             -dname "CN=CalcLens TH Test,O=CalcLens TH,C=TH"
+          keytool -genkeypair -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=CalcLens TH Test,O=CalcLens TH,C=TH"
 
-      - name: Inspect RapidLaTeXOCR tokenizer
+      - name: Inspect PP-FormulaNet tokenizer
         run: |
-          curl -L --fail --retry 3 https://github.com/RapidAI/RapidLaTeXOCR/releases/download/v0.0.0/tokenizer.json -o /tmp/tokenizer.json
+          curl -L --fail --retry 3 "https://modelscope.cn/models/greatv/oar-ocr/resolve/master/pp-formulanet-tokenizer.json" -o /tmp/tokenizer.json
           python - <<'PY'
           import json
           j=json.load(open('/tmp/tokenizer.json'))
           print('decoder=',j.get('decoder'))
+          print('added_tokens=',j.get('added_tokens',[])[:20])
           v=j['model']['vocab']
           inv=sorted((i,t) for t,i in v.items())
           print('vocab_size=',len(inv))
-          print('first=',inv[:80])
-          print('sample_latex=',[(i,t) for i,t in inv if any(x in t for x in ['\\\\frac','frac','sqrt','lim','cos'])][:40])
+          print('first=',inv[:120])
+          print('sample_latex=',[(i,t) for i,t in inv if any(x in t for x in ['frac','sqrt','lim','cos','Ġ','▁'])][:100])
           PY
 
       - uses: gradle/actions/setup-gradle@v4
