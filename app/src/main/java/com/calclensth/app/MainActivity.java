@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -17,14 +18,16 @@ import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import com.yalantis.ucrop.UCrop;
 
 import org.json.JSONObject;
 
 import java.io.File;
 
-public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
+public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
     private static final int REQ_CAMERA_PERMISSION = 7000;
     private static final int REQ_CAMERA_CAPTURE = 7001;
+    private static final int REQ_PICK_IMAGE = 7002;
 
     private WebView webView;
     private Uri photoUri;
@@ -59,18 +62,31 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
             );
             return;
         }
-
         openSystemCamera();
+    }
+
+    @Override
+    public void pickImage() {
+        try {
+            Intent intent;
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
+                intent.setType("image/*");
+            } else {
+                intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/*");
+            }
+            startActivityForResult(intent, REQ_PICK_IMAGE);
+        } catch (Exception e) {
+            sendError("เปิดคลังรูปไม่ได้: " + safeMessage(e));
+        }
     }
 
     private void openSystemCamera() {
         try {
-            File dir = new File(getCacheDir(), "images");
-            if (!dir.exists() && !dir.mkdirs()) {
-                throw new IllegalStateException("สร้างโฟลเดอร์รูปไม่ได้");
-            }
-
-            File photoFile = File.createTempFile("calclens_", ".jpg", dir);
+            File dir = getImageCacheDir();
+            File photoFile = File.createTempFile("calclens_camera_", ".jpg", dir);
             photoUri = FileProvider.getUriForFile(
                     this,
                     getPackageName() + ".fileprovider",
@@ -94,6 +110,35 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
         }
     }
 
+    private File getImageCacheDir() {
+        File dir = new File(getCacheDir(), "images");
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IllegalStateException("สร้างโฟลเดอร์รูปไม่ได้");
+        }
+        return dir;
+    }
+
+    private void startCrop(Uri source) {
+        try {
+            File cropFile = File.createTempFile("calclens_crop_", ".jpg", getImageCacheDir());
+            Uri destination = Uri.fromFile(cropFile);
+
+            UCrop.Options options = new UCrop.Options();
+            options.setFreeStyleCropEnabled(true);
+            options.setCompressionFormat(Bitmap.CompressFormat.JPEG);
+            options.setCompressionQuality(96);
+            options.setHideBottomControls(false);
+            options.setToolbarTitle("ครอปเฉพาะโจทย์");
+
+            UCrop.of(source, destination)
+                    .withOptions(options)
+                    .withMaxResultSize(2200, 2200)
+                    .start(this);
+        } catch (Exception e) {
+            sendError("เปิดหน้าครอปไม่ได้: " + safeMessage(e));
+        }
+    }
+
     @Override
     public void onRequestPermissionsResult(
             int requestCode,
@@ -107,7 +152,7 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
                     grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 openSystemCamera();
             } else {
-                sendError("ยังไม่ได้อนุญาตใช้กล้อง กรุณาเลือก 'อนุญาต' หรือไปที่ การตั้งค่า > แอป > CalcLens TH > สิทธิ์ > กล้อง");
+                sendError("ยังไม่ได้อนุญาตใช้กล้อง กรุณาอนุญาตสิทธิ์กล้องให้ CalcLens TH");
             }
         }
     }
@@ -120,7 +165,32 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
         if (requestCode == REQ_CAMERA_CAPTURE &&
                 resultCode == RESULT_OK &&
                 photoUri != null) {
-            runOcr(photoUri);
+            startCrop(photoUri);
+            return;
+        }
+
+        if (requestCode == REQ_PICK_IMAGE &&
+                resultCode == RESULT_OK &&
+                data != null &&
+                data.getData() != null) {
+            startCrop(data.getData());
+            return;
+        }
+
+        if (requestCode == UCrop.REQUEST_CROP && resultCode == RESULT_OK && data != null) {
+            Uri resultUri = UCrop.getOutput(data);
+            if (resultUri != null) {
+                runOcr(resultUri);
+            } else {
+                sendError("ไม่พบรูปที่ครอปแล้ว");
+            }
+            return;
+        }
+
+        if (requestCode == UCrop.REQUEST_CROP && resultCode == UCrop.RESULT_ERROR && data != null) {
+            Throwable error = UCrop.getError(data);
+            sendError("ครอปรูปไม่สำเร็จ: " +
+                    (error == null ? "ไม่ทราบสาเหตุ" : error.getMessage()));
         }
     }
 
@@ -136,15 +206,15 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
         }
     }
 
-    private void sendOcr(String text) {
-        final String safe = JSONObject.quote(text == null ? "" : text);
+    private void sendOcr(String value) {
+        final String safe = JSONObject.quote(value == null ? "" : value);
         runOnUiThread(() -> webView.evaluateJavascript(
                 "window.onOcrResult && window.onOcrResult(" + safe + ")", null
         ));
     }
 
-    private void sendError(String text) {
-        final String safe = JSONObject.quote(text == null ? "" : text);
+    private void sendError(String value) {
+        final String safe = JSONObject.quote(value == null ? "" : value);
         runOnUiThread(() -> webView.evaluateJavascript(
                 "window.onNativeError && window.onNativeError(" + safe + ")", null
         ));
