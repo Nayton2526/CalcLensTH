@@ -4,14 +4,14 @@ plugins {
 
 android {
     namespace 'com.calclensth.app'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.calclensth.app'
         minSdk 24
         targetSdk 35
-        versionCode 5
-        versionName '0.3.1'
+        versionCode 6
+        versionName '0.3.2'
     }
 
     compileOptions {
@@ -32,5 +32,5 @@ dependencies {
     implementation 'androidx.core:core:1.15.0'
     implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation 'com.google.mlkit:text-recognition:16.0.1'
-    implementation 'com.github.yalantis:ucrop:2.2.8'
+    implementation 'com.github.yalantis:ucrop:2.2.11'
 }
