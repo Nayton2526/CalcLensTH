@@ -36,20 +36,11 @@ jobs:
           mkdir -p ~/.android
           keytool -genkeypair -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=CalcLens TH Test,O=CalcLens TH,C=TH"
 
-      - name: Inspect PP-FormulaNet tokenizer
+      - name: Bundle PP-FormulaNet tokenizer
         run: |
-          curl -L --fail --retry 3 "https://modelscope.cn/models/greatv/oar-ocr/resolve/master/pp-formulanet-tokenizer.json" -o /tmp/tokenizer.json
-          python - <<'PY'
-          import json
-          j=json.load(open('/tmp/tokenizer.json'))
-          print('decoder=',j.get('decoder'))
-          print('added_tokens=',j.get('added_tokens',[])[:20])
-          v=j['model']['vocab']
-          inv=sorted((i,t) for t,i in v.items())
-          print('vocab_size=',len(inv))
-          print('first=',inv[:120])
-          print('sample_latex=',[(i,t) for i,t in inv if any(x in t for x in ['frac','sqrt','lim','cos','Ġ','▁'])][:100])
-          PY
+          mkdir -p app/src/main/assets/models
+          curl -L --fail --retry 3 "https://modelscope.cn/models/greatv/oar-ocr/resolve/master/pp-formulanet-tokenizer.json" -o app/src/main/assets/models/pp-formulanet-tokenizer.json
+          echo "2811d82701ec97c192fa256aa2b4516929373870ae660326cc5b1dc879b95ff2  app/src/main/assets/models/pp-formulanet-tokenizer.json" | sha256sum -c -
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -60,5 +51,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CalcLensTH-V0.3.3-debug-apk
+          name: CalcLensTH-V0.4-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
