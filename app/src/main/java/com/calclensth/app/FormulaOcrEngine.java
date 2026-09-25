@@ -266,11 +266,64 @@ public class FormulaOcrEngine implements AutoCloseable {
                 throw new IllegalStateException("โมเดลไม่ส่งผลลัพธ์ token");
             }
 
-            return decodeTokens(tokenIds);
+            String latex = decodeTokens(tokenIds);
+            if (!isPlausibleLatex(latex)) {
+                throw new IllegalStateException(
+                        "อ่านสูตรยังไม่มั่นใจ กรุณาครอปให้เหลือเฉพาะสูตร 1 บรรทัดแล้วลองอีกครั้ง"
+                );
+            }
+            return latex;
         }
     }
 
+    private boolean isPlausibleLatex(String latex) {
+        if (latex == null) return false;
+        String s = latex.trim();
+        if (s.length() < 2 || s.length() > 900) return false;
+
+        int visible = 0;
+        int slashSpace = 0;
+        int maxSlashRun = 0;
+        int slashRun = 0;
+        int mathSignal = 0;
+
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (!Character.isWhitespace(ch)) visible++;
+
+            if (ch == '\\') {
+                slashRun++;
+                maxSlashRun = Math.max(maxSlashRun, slashRun);
+                if (i + 1 < s.length() && s.charAt(i + 1) == ' ') slashSpace++;
+            } else {
+                slashRun = 0;
+            }
+
+            if (Character.isLetterOrDigit(ch) || "+-=^_()[]{}".indexOf(ch) >= 0) {
+                mathSignal++;
+            }
+        }
+
+        if (visible == 0 || mathSignal < 2) return false;
+        if (maxSlashRun >= 5) return false;
+        if (slashSpace > Math.max(8, visible / 5)) return false;
+
+        // Common failure mode: the model sees mostly blank/non-formula pixels and
+        // emits hundreds of spacing/backslash tokens.
+        String compact = s.replace(" ", "");
+        if (compact.matches("(?s).*(\\\\\\\\){3,}.*")) return false;
+
+        return true;
+    }
+
     private Bitmap detectTopFormulaRegion(Bitmap src) throws Exception {
+        // If the user already cropped a single expression, do not run the
+        // document-layout detector again. Re-cropping a tight formula can cut off
+        // integral signs, exponents or radicals and makes PP-FormulaNet hallucinate.
+        if (looksLikeSingleFormulaCrop(src)) {
+            return src;
+        }
+
         ensureLayoutSession();
 
         int srcW = src.getWidth();
@@ -347,16 +400,19 @@ public class FormulaOcrEngine implements AutoCloseable {
                         y1 = clamp(y1, 0, srcH - 1);
                         y2 = clamp(y2, 0, srcH);
 
-                        if (x2 - x1 < 8 || y2 - y1 < 8) continue;
+                        float bw = x2 - x1;
+                        float bh = y2 - y1;
+                        if (bw < Math.max(40f, srcW * 0.08f) ||
+                                bh < Math.max(16f, srcH * 0.018f)) {
+                            continue;
+                        }
                         boxes.add(new FormulaBox(x1, y1, x2, y2, score));
                     }
                 }
 
                 if (boxes.isEmpty()) {
-                    // A manual crop that is already a single formula should still work.
-                    if (looksLikeSingleFormulaCrop(src)) return src;
                     throw new IllegalStateException(
-                            "ยังไม่พบสูตรชัดเจนในกรอบ กรุณาครอปให้เหลือโจทย์หนึ่งข้อ"
+                            "ยังไม่พบสูตรชัดเจนในกรอบ กรุณาครอปให้เหลือเฉพาะสูตรที่จะคำนวณ"
                     );
                 }
 
