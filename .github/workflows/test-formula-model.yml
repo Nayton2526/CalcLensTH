@@ -1,0 +1,79 @@
+name: One-time formula model validation
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/test-formula-model.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test deps
+        run: pip install --quiet onnxruntime tokenizers pillow numpy
+      - name: Download public model and public PaddleOCR sample
+        run: |
+          curl -L --fail --retry 3 "https://github.com/GreatV/oar-ocr/releases/download/v0.3.0/pp-formulanet-s.onnx" -o /tmp/model.onnx
+          curl -L --fail --retry 3 "https://modelscope.cn/models/greatv/oar-ocr/resolve/master/pp-formulanet-tokenizer.json" -o /tmp/tokenizer.json
+          curl -L --fail --retry 3 "https://paddle-model-ecology.bj.bcebos.com/paddlex/demo_image/pipelines/general_formula_recognition_001.png" -o /tmp/sample.png
+      - name: Run exact CalcLens preprocessing
+        run: |
+          cat > /tmp/test.py <<'PY'
+          import numpy as np, onnxruntime as ort
+          from PIL import Image
+          from tokenizers import Tokenizer
+
+          SIZE=384
+          MEAN=.7931
+          STD=.1738
+
+          im=Image.open('/tmp/sample.png').convert('RGB')
+          g=np.asarray(im.convert('L'))
+          mn,mx=int(g.min()),int(g.max())
+          if mx>mn:
+              norm=((g.astype(np.float32)-mn)*255.0/(mx-mn))
+              ys,xs=np.where(norm<200)
+              if len(xs):
+                  im=im.crop((int(xs.min()),int(ys.min()),int(xs.max())+1,int(ys.max())+1))
+
+          w,h=im.size
+          scale=SIZE/max(w,h)
+          nw=max(1,min(SIZE,int(w*scale)))
+          nh=max(1,min(SIZE,int(h*scale)))
+          im=im.resize((nw,nh),Image.Resampling.BILINEAR)
+          canvas=Image.new('RGB',(SIZE,SIZE),(0,0,0))
+          canvas.paste(im,((SIZE-nw)//2,(SIZE-nh)//2))
+
+          arr=np.asarray(canvas).astype(np.float32)/255.0
+          gray=(.299*arr[:,:,0]+.587*arr[:,:,1]+.114*arr[:,:,2]-MEAN)/STD
+          x=gray[None,None,:,:].astype(np.float32)
+
+          sess=ort.InferenceSession('/tmp/model.onnx',providers=['CPUExecutionProvider'])
+          print('INPUTS',[(i.name,i.shape,i.type) for i in sess.get_inputs()])
+          print('OUTPUTS DECL',[(o.name,o.shape,o.type) for o in sess.get_outputs()])
+          outs=sess.run(None,{sess.get_inputs()[0].name:x})
+          for meta,val in zip(sess.get_outputs(),outs):
+              print('OUT',meta.name,val.dtype,val.shape,'prefix',val.reshape(-1)[:20].tolist())
+
+          ids=None
+          for val in outs:
+              if val.dtype==np.int64 and val.ndim==2:
+                  ids=val[0].tolist()
+                  break
+          assert ids is not None
+          filt=[]
+          for i in ids:
+              i=int(i)
+              if i==2 or i>=50000: break
+              if i>=0 and i!=0: filt.append(i)
+
+          tok=Tokenizer.from_file('/tmp/tokenizer.json')
+          s=tok.decode(filt,skip_special_tokens=True)
+          print('TOKENS',filt[:60])
+          print('LATEX',repr(s))
+          PY
+          python /tmp/test.py
