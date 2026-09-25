@@ -16,7 +16,7 @@ import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
-import java.io.File;
+import java.io.File;\nimport org.json.JSONObject;
 
 public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
     private static final int REQ_CAMERA = 7001;
