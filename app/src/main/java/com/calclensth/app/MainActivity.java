@@ -21,6 +21,8 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
     private static final int REQ_CAMERA_PERMISSION = 7000;
@@ -30,9 +32,12 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
 
     private WebView webView;
     private Uri photoUri;
+    private String ocrMode = "basic";
 
-    private final TextRecognizer recognizer =
+    private final TextRecognizer textRecognizer =
             TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private FormulaOcrEngine formulaEngine;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,10 +54,17 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
         webView.addJavascriptInterface(new OcrBridge(this), "Android");
         webView.setWebViewClient(new WebViewClient());
         webView.loadUrl("file:///android_asset/index.html");
+
+        try {
+            formulaEngine = new FormulaOcrEngine(this);
+        } catch (Exception e) {
+            sendError("เริ่ม Math OCR ไม่สำเร็จ: " + safeMessage(e));
+        }
     }
 
     @Override
-    public void launchCamera() {
+    public void launchCamera(String mode) {
+        ocrMode = normalizeMode(mode);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M &&
                 checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(
@@ -65,7 +77,8 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
     }
 
     @Override
-    public void pickImage() {
+    public void pickImage(String mode) {
+        ocrMode = normalizeMode(mode);
         try {
             Intent intent;
             if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -80,6 +93,18 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
         } catch (Exception e) {
             sendError("เปิดคลังรูปไม่ได้: " + safeMessage(e));
         }
+    }
+
+    private String normalizeMode(String mode) {
+        if ("calculus".equals(mode) || "basic".equals(mode) ||
+                "electrical".equals(mode) || "mechanical".equals(mode)) {
+            return mode;
+        }
+        return "basic";
+    }
+
+    private boolean shouldUseFormulaOcr() {
+        return "basic".equals(ocrMode) || "calculus".equals(ocrMode);
     }
 
     private void openSystemCamera() {
@@ -169,14 +194,42 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
                 resultCode == RESULT_OK &&
                 data != null &&
                 data.getData() != null) {
-            runOcr(data.getData());
+            Uri cropped = data.getData();
+            if (shouldUseFormulaOcr()) {
+                runFormulaOcr(cropped);
+            } else {
+                runTextOcr(cropped);
+            }
         }
     }
 
-    private void runOcr(Uri uri) {
+    private void runFormulaOcr(Uri uri) {
+        if (formulaEngine == null) {
+            sendError("Math OCR ยังเริ่มทำงานไม่ได้");
+            return;
+        }
+
+        sendModelProgress(0, "กำลังเตรียม Math OCR");
+
+        worker.submit(() -> {
+            try {
+                formulaEngine.ensureModel(this::sendModelProgress);
+                sendModelProgress(100, "กำลังอ่านโครงสร้างสูตร");
+                String latex = formulaEngine.recognize(uri);
+                if (latex == null || latex.trim().isEmpty()) {
+                    throw new IllegalStateException("ไม่พบสูตรในภาพ ลองครอปเฉพาะสูตรให้ชิดขึ้น");
+                }
+                sendFormulaResult(latex);
+            } catch (Exception e) {
+                sendError("Math OCR ไม่สำเร็จ: " + safeMessage(e));
+            }
+        });
+    }
+
+    private void runTextOcr(Uri uri) {
         try {
             InputImage image = InputImage.fromFilePath(this, uri);
-            recognizer.process(image)
+            textRecognizer.process(image)
                     .addOnSuccessListener(result -> sendOcr(result.getText()))
                     .addOnFailureListener(e ->
                             sendError("OCR อ่านภาพไม่สำเร็จ: " + safeMessage(e)));
@@ -185,10 +238,25 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
         }
     }
 
+    private void sendFormulaResult(String value) {
+        final String safe = JSONObject.quote(value == null ? "" : value);
+        runOnUiThread(() -> webView.evaluateJavascript(
+                "window.onFormulaResult && window.onFormulaResult(" + safe + ")", null
+        ));
+    }
+
     private void sendOcr(String value) {
         final String safe = JSONObject.quote(value == null ? "" : value);
         runOnUiThread(() -> webView.evaluateJavascript(
                 "window.onOcrResult && window.onOcrResult(" + safe + ")", null
+        ));
+    }
+
+    private void sendModelProgress(int percent, String message) {
+        final String safe = JSONObject.quote(message == null ? "" : message);
+        runOnUiThread(() -> webView.evaluateJavascript(
+                "window.onModelProgress && window.onModelProgress(" +
+                        percent + "," + safe + ")", null
         ));
     }
 
@@ -207,7 +275,9 @@ public class MainActivity extends Activity implements OcrBridge.ImageLauncher {
 
     @Override
     protected void onDestroy() {
-        recognizer.close();
+        textRecognizer.close();
+        worker.shutdownNow();
+        if (formulaEngine != null) formulaEngine.close();
         super.onDestroy();
     }
 }
