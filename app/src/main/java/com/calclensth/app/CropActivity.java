@@ -23,6 +23,7 @@ import java.io.InputStream;
 
 public class CropActivity extends Activity {
     public static final String EXTRA_SOURCE_URI = "source_uri";
+    public static final String EXTRA_MODE = "ocr_mode";
 
     private CropView cropView;
     private Bitmap sourceBitmap;
@@ -37,7 +38,8 @@ public class CropActivity extends Activity {
             return;
         }
 
-        buildUi();
+        String mode = getIntent().getStringExtra(EXTRA_MODE);
+        buildUi(mode);
 
         try {
             Uri uri = Uri.parse(source);
@@ -52,7 +54,7 @@ public class CropActivity extends Activity {
         }
     }
 
-    private void buildUi() {
+    private void buildUi(String mode) {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.BLACK);
@@ -72,7 +74,8 @@ public class CropActivity extends Activity {
         cancel.setOnClickListener(v -> finish());
 
         TextView title = new TextView(this);
-        title.setText("ครอปเฉพาะโจทย์");
+        boolean mathMode = "basic".equals(mode) || "calculus".equals(mode);
+        title.setText(mathMode ? "ครอปโจทย์ 1 ข้อ" : "ครอปเฉพาะโจทย์");
         title.setTextColor(Color.WHITE);
         title.setTextSize(18);
         title.setGravity(Gravity.CENTER);
@@ -97,7 +100,9 @@ public class CropActivity extends Activity {
                 );
 
         TextView hint = new TextView(this);
-        hint.setText("ลากมุมสีขาวเพื่อปรับกรอบ • ลากด้านในกรอบเพื่อย้าย");
+        hint.setText(mathMode
+                ? "ครอปให้เหลือโจทย์ 1 ข้อได้ทั้งบรรทัด • ระบบจะหาสูตรบนสุดให้อัตโนมัติ"
+                : "ลากมุมสีขาวเพื่อปรับกรอบ • ลากด้านในกรอบเพื่อย้าย");
         hint.setTextColor(Color.WHITE);
         hint.setTextSize(13);
         hint.setGravity(Gravity.CENTER);
