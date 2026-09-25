@@ -16,26 +16,28 @@ import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
-import java.io.File;\nimport org.json.JSONObject;
+import org.json.JSONObject;
+
+import java.io.File;
 
 public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
     private static final int REQ_CAMERA = 7001;
     private WebView webView;
     private Uri photoUri;
-    private File photoFile;
     private final TextRecognizer recognizer =
             TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         webView = new WebView(this);
         setContentView(webView);
 
-        WebSettings s = webView.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setAllowFileAccess(true);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
 
         webView.addJavascriptInterface(new OcrBridge(this), "Android");
         webView.setWebViewClient(new WebViewClient());
@@ -46,8 +48,11 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
     public void launchCamera() {
         try {
             File dir = new File(getCacheDir(), "images");
-            if (!dir.exists()) dir.mkdirs();
-            photoFile = File.createTempFile("calclens_", ".jpg", dir);
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw new IllegalStateException("สร้างโฟลเดอร์รูปไม่ได้");
+            }
+
+            File photoFile = File.createTempFile("calclens_", ".jpg", dir);
             photoUri = FileProvider.getUriForFile(
                     this,
                     getPackageName() + ".fileprovider",
@@ -56,11 +61,18 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
 
             Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             intent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri);
-            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+
+            if (intent.resolveActivity(getPackageManager()) == null) {
+                throw new IllegalStateException("ไม่พบแอปกล้อง");
+            }
+
             startActivityForResult(intent, REQ_CAMERA);
         } catch (Exception e) {
-            sendError("เปิดกล้องไม่ได้: " + e.getMessage());
+            sendError("เปิดกล้องไม่ได้: " + safeMessage(e));
         }
     }
 
@@ -78,34 +90,29 @@ public class MainActivity extends Activity implements OcrBridge.CameraLauncher {
             InputImage image = InputImage.fromFilePath(this, uri);
             recognizer.process(image)
                     .addOnSuccessListener(result -> sendOcr(result.getText()))
-                    .addOnFailureListener(e -> sendError("OCR อ่านภาพไม่สำเร็จ: " + e.getMessage()));
+                    .addOnFailureListener(e ->
+                            sendError("OCR อ่านภาพไม่สำเร็จ: " + safeMessage(e)));
         } catch (Exception e) {
-            sendError("อ่านรูปไม่ได้: " + e.getMessage());
+            sendError("อ่านรูปไม่ได้: " + safeMessage(e));
         }
     }
 
     private void sendOcr(String text) {
-        final String safe = jsonEscape(text);
+        final String safe = JSONObject.quote(text == null ? "" : text);
         runOnUiThread(() -> webView.evaluateJavascript(
                 "window.onOcrResult && window.onOcrResult(" + safe + ")", null
         ));
     }
 
     private void sendError(String text) {
-        final String safe = jsonEscape(text);
+        final String safe = JSONObject.quote(text == null ? "" : text);
         runOnUiThread(() -> webView.evaluateJavascript(
                 "window.onNativeError && window.onNativeError(" + safe + ")", null
         ));
     }
 
-    private String jsonEscape(String value) {
-        if (value == null) value = "";
-        return """ + value
-                .replace("\\", "\\\\")
-                .replace(""", "\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t") + """;
+    private String safeMessage(Exception e) {
+        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     }
 
     @Override
