@@ -10,8 +10,8 @@ android {
         applicationId 'com.calclensth.app'
         minSdk 24
         targetSdk 35
-        versionCode 3
-        versionName '0.2.1'
+        versionCode 4
+        versionName '0.3.0'
     }
 
     compileOptions {
@@ -30,5 +30,7 @@ configurations.configureEach {
 
 dependencies {
     implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation 'com.google.mlkit:text-recognition:16.0.1'
+    implementation 'com.github.yalantis:ucrop:2.2.11'
 }
